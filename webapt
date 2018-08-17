@@ -1,0 +1,136 @@
+#!/usr/bin/python3
+#
+
+"""webapt is a commandline web application package manager and provides 
+commands for installing, removing, and searching web applications."""
+
+import argparse
+import os
+import sys
+
+C_LIST   = 'list'
+C_SEARCH = 'search'
+C_SHOW   = 'show'
+C_INSTALL= 'install'
+C_REMOVE = 'remove'
+C_UPDATE = 'update'
+COMMANDS = [C_LIST, C_SEARCH, C_SHOW, C_INSTALL, C_REMOVE, C_UPDATE]
+
+def fatal_error(message):
+    print('Error: ' + message, file=sys.stderr)
+    sys.exit(1)
+
+def root_data_dir():
+    result = ''
+    preferred = '/usr/share'
+    if ('XDG_DATA_DIRS' in os.environ):
+        for dir in os.environ['XDG_DATA_DIRS'].split(':'):
+            if (dir == preferred):
+                result = dir
+            elif (result == ''):
+                result = dir
+    if (result == ''):
+        return preferred
+    else:
+        return result
+
+def user_data_dir(home):
+    if ('XDG_DATA_HOME' in os.environ):
+        return os.environ['XDG_DATA_HOME']
+    else:
+        return home + '/.local/share'
+
+def user_config_dir(home):
+    if ('XDG_CONFIG_HOME' in os.environ):
+        return os.environ['XDG_CONFIG_HOME']
+    else:
+        return home + '/.config'
+
+def root_config():
+    return '.config'
+  
+def install_dirs(root=False):
+    """Directories following the XDG Base Directory Specification at:
+https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html"""
+    home = os.environ['HOME'] # must be there
+    if (root):
+        data = root_data_dir()
+    else:
+        data = user_data_dir(home)
+    config = user_config_dir(home)
+    return (data, config)
+
+
+
+def apt_install(app_name):
+    if (app_name is None):
+        fatal_error('package name required')
+    else:
+        (dir_data, dir_config) = install_dirs(root=True)
+        print ("Installing " + app_name + "...")
+
+
+def remove_file_if_exists(file_name):
+    try:
+        os.remove(file_name)
+    except:
+        pass
+
+def remove_freedesktop_package(app_name, root):
+    (dir_data, dir_config) = install_dirs(root)
+    desktop_file = dir_data + '/applications/' + app_name + '.desktop'
+    os.remove(desktop_file)
+    if (root): 
+        type = 'global'
+    else:
+        type = 'local'
+    print ("Removed " + type + " package: " + app_name)
+    icon_prefix = dir_data + '/icons/' + app_name 
+    remove_file_if_exists(icon_prefix + ".png")
+    remove_file_if_exists(icon_prefix + ".svg")
+
+
+
+def apt_remove(app_name):
+    if (app_name is None):
+        fatal_error('package name required')
+    else:
+        error = ""
+        try:  # first try as root
+            remove_freedesktop_package(app_name, root=True)
+            return  # success? then we're done
+        except PermissionError:
+            error = "Permission denied: " + app_name
+        except FileNotFoundError:
+            pass
+        try: # second try as normal user
+            remove_freedesktop_package(app_name, root=False)
+        except FileNotFoundError:
+            if (error != ""):
+                print (error, file=sys.stderr)
+            else:
+                print ("Package not found: " + app_name, file=sys.stderr)
+
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', help=str(COMMANDS))
+    parser.add_argument('arg', help="command argument", nargs='?')
+    args = parser.parse_args()
+    if (not args.command in COMMANDS):
+        fatal_error('Command one of ' + str(COMMANDS))
+    elif (args.command == C_LIST):
+        fatal_error('Not implemented')
+    elif (args.command == C_SEARCH):
+        fatal_error('Not implemented')
+    elif (args.command == C_SHOW):
+        fatal_error('Not implemented')
+    elif (args.command == C_INSTALL):
+        apt_install(args.arg)
+    elif (args.command == C_REMOVE):
+        apt_remove(args.arg)
+    elif (args.command == C_UPDATE):
+        fatal_error('Not implemented')
+ 
+
