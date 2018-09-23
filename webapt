@@ -1,12 +1,14 @@
 #!/usr/bin/python3
-#
 
 """webapt is a commandline web application package manager and provides 
 commands for installing, removing, and searching web applications."""
 
 import argparse
+import gzip
 import os
+import requests
 import sys
+import zlib
 
 C_LIST   = 'list'
 C_SEARCH = 'search'
@@ -16,10 +18,30 @@ C_REMOVE = 'remove'
 C_UPDATE = 'update'
 COMMANDS = [C_LIST, C_SEARCH, C_SHOW, C_INSTALL, C_REMOVE, C_UPDATE]
 
+SOURCE = 'https://github.com/djoerd/webapt/blob/master/web/os/ubuntu/xenial/Packages.gz?raw=true'
+
+
 def fatal_error(message):
     print('Error: ' + message, file=sys.stderr)
     sys.exit(1)
 
+def read_packages():
+    packages = []
+    package = {}
+    response = requests.get(SOURCE)
+    if (response.status_code != requests.codes.ok):
+        fatal_error('Packages not found. Please, check internet connection.')
+    data = zlib.decompress(response.content, zlib.MAX_WBITS|32)
+    for line in data.decode("utf-8").split("\n"):
+        if line == "":
+            if 'Package' in package:
+                packages.append(package)
+            package = {} 
+        else:
+            (key, value) = line.split(": ", 1)
+            package[key] = value
+    return packages
+ 
 def root_data_dir():
     result = ''
     preferred = '/usr/share'
@@ -101,7 +123,7 @@ def apt_remove(app_name):
             return  # success? then we're done
         except PermissionError:
             error = "Permission denied: " + app_name
-        except FileNotFoundError:
+        except:  # FileNotFoundError:
             pass
         try: # second try as normal user
             remove_freedesktop_package(app_name, root=False)
@@ -112,6 +134,13 @@ def apt_remove(app_name):
                 print ("Package not found: " + app_name, file=sys.stderr)
 
 
+def apt_list(name=None):
+    packages = read_packages() 
+    for package in packages:
+        p_name = package['Package']
+        version =  package['Version']
+        if (name is None or name == p_name):
+            print (p_name, version)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
@@ -121,7 +150,7 @@ if __name__ == '__main__':
     if (not args.command in COMMANDS):
         fatal_error('Command one of ' + str(COMMANDS))
     elif (args.command == C_LIST):
-        fatal_error('Not implemented')
+        apt_list(args.arg)
     elif (args.command == C_SEARCH):
         fatal_error('Not implemented')
     elif (args.command == C_SHOW):
