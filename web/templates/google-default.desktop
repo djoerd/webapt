@@ -1,0 +1,10 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=1.0
+Terminal=false
+Type=Application
+StartupNotify=true 
+Name=$Name
+Exec=google-chrome --app=$Webpage --user-data-dir=$APTConfigDIR/webapt-$Package
+Icon=$Icon
+StartupWMClass=$WMClass

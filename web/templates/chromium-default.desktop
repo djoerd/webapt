@@ -1,0 +1,9 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=1.0
+Terminal=false
+Type=Application
+Name=$Name
+Exec=chromium-browser --app=$Webpage --user-data-dir=$APTConfigDir/webapt-$Package
+Icon=$Icon
+StartupWMClass=$WMClass

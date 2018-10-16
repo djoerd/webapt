@@ -28,10 +28,14 @@ def fatal_error(message):
 def read_packages():
     packages = []
     package = {}
-    response = requests.get(SOURCE)
-    if (response.status_code != requests.codes.ok):
+    try:
+        response = requests.get(SOURCE)
+    except:
         fatal_error('Packages not found. Please, check internet connection.')
-    data = zlib.decompress(response.content, zlib.MAX_WBITS|32)
+    try:
+        data = zlib.decompress(response.content, zlib.MAX_WBITS|32)
+    except:
+        fatal_error('Packages malformed. Please check source url.')
     for line in data.decode("utf-8").split("\n"):
         if line == "":
             if 'Package' in package:
@@ -113,53 +117,97 @@ def remove_freedesktop_package(app_name, root):
 
 
 
-def apt_remove(app_name):
+def apt_remove(app_name, found=False):
     if (app_name is None):
         fatal_error('package name required')
-    else:
-        error = ""
-        try:  # first try as root
-            remove_freedesktop_package(app_name, root=True)
-            return  # success? then we're done
-        except PermissionError:
-            error = "Permission denied: " + app_name
-        except:  # FileNotFoundError:
-            pass
-        try: # second try as normal user
-            remove_freedesktop_package(app_name, root=False)
-        except FileNotFoundError:
-            if (error != ""):
-                print (error, file=sys.stderr)
-            else:
-                print ("Package not found: " + app_name, file=sys.stderr)
+    for package in read_packages():
+        if app_name == package['Package']:
+            found = True
+            break
+    if not found:
+        fatal_error('Package not in list: ' + app_name + ' (use "-f" to force removal)')
+    error = ""
+    try:  # first try as root
+        remove_freedesktop_package(app_name, root=True)
+        return  # success? then we're done
+    except PermissionError:
+        error = "Permission denied: " + app_name
+    except:  # FileNotFoundError:
+        pass
+    try: # second try as normal user
+        remove_freedesktop_package(app_name, root=False)
+    except FileNotFoundError:
+        if (error != ""):
+            print (error, file=sys.stderr)
+        else:
+            print ("Package already removed: " + app_name, file=sys.stderr)
 
 
-def apt_list(name=None):
-    packages = read_packages() 
-    for package in packages:
+def apt_list(app_name=None):
+    for package in read_packages():
         p_name = package['Package']
         version =  package['Version']
-        if (name is None or name == p_name):
+        if (app_name is None or app_name == p_name):
             print (p_name, version)
 
+def apt_show(app_name):
+    if app_name is None:
+        fatal_error('Please provide a package name')
+    for package in read_packages():
+        p_name = package['Package']
+        if (app_name is None or app_name == p_name):
+            for key in package:
+                print(key + ': ' + package[key])
+
+def apt_search(search_string):
+    if search_string is None:
+        fatal_error('Please provide a search string')
+    keywords = search_string.lower().split(' ')
+    for package in read_packages():
+        p_name = package['Package']
+        version = package['Version']
+        result = p_name
+        snippet = ''
+        if 'Section' in package:
+            snippet = package['Section']
+            result += ' ' + snippet
+        if 'Name' in package:
+            snippet = package['Name']
+            result += ' ' + snippet
+        if 'Description' in package:
+            snippet = package['Description']
+            result += ' ' + snippet
+        result = result.lower()
+        found = True
+        for word in keywords:
+            if not word in result:
+               found = False
+               break
+        if found:
+            print (p_name, version)
+            print ('  ' + snippet)
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=True)
     parser.add_argument('command', help=str(COMMANDS))
     parser.add_argument('arg', help="command argument", nargs='?')
+    parser.add_argument("-f", "--force", help="force removal", action='store_true')
+
+
     args = parser.parse_args()
     if (not args.command in COMMANDS):
         fatal_error('Command one of ' + str(COMMANDS))
     elif (args.command == C_LIST):
         apt_list(args.arg)
     elif (args.command == C_SEARCH):
-        fatal_error('Not implemented')
+        apt_search(args.arg)
     elif (args.command == C_SHOW):
-        fatal_error('Not implemented')
+        apt_show(args.arg)
     elif (args.command == C_INSTALL):
         apt_install(args.arg)
     elif (args.command == C_REMOVE):
-        apt_remove(args.arg)
+        apt_remove(args.arg, args.force)
     elif (args.command == C_UPDATE):
         fatal_error('Not implemented')
  
-

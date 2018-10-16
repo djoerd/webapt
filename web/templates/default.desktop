@@ -1,9 +1,0 @@
-#!/usr/bin/env xdg-open
-[Desktop Entry]
-Version=1.0
-Terminal=false
-Type=Application
-Name=$Name
-Exec=$Command --app=$Webpage --user-data-dir=.config/$Package-runbox
-Icon=$Icon
-StartupWMClass=$Startup
