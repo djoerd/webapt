@@ -32,6 +32,8 @@ def read_packages():
         response = requests.get(SOURCE)
     except:
         fatal_error('Packages not found. Please, check internet connection.')
+    if response.status_code == 404:
+        fatal_error('Packages not found.')
     try:
         data = zlib.decompress(response.content, zlib.MAX_WBITS|32)
     except:
@@ -77,7 +79,7 @@ def root_config():
   
 def install_dirs(root=False):
     """Directories following the XDG Base Directory Specification at:
-https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html"""
+    https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html"""
     home = os.environ['HOME'] # must be there
     if (root):
         data = root_data_dir()
@@ -87,13 +89,62 @@ https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html"""
     return (data, config)
 
 
+def check_depends(package):
+    return True #TODO: check if chromium-browser (and such) exists
+
+def get_template(package):
+    if not 'Template' in package:
+        fatal_error('No template in package')
+    source = 'https://github.com/djoerd/webapt/blob/master/web/' #TODO!
+    template = package['Template']
+    url = source + template + '?raw=true'
+    try:
+        response = requests.get(url)
+    except:
+        fatal_error('Template not found. Check your connection.')
+    if response.status_code == 404:
+        fatal_error('Template not found. Package malformed.')
+    return response.content.decode("utf-8")
+
+def write_file(name, dir, contents):
+    print ('Name: ', name)
+    print ('Dir:  ', dir)
+    print (contents)
+    raise Exception('my error')
+ 
+
+def install_package(package):
+    template = get_template(package)
+    for key in package:
+        template = template.replace('$' + key, package[key])
+    (dir_data, dir_config) = install_dirs(root=True)
+    desktop_file = template.replace('$APTConfigDir', dir_config)
+    try:
+        dir_applications = dir_data + '/applications'
+        write_file(package['Package'], dir_applications, desktop_file)
+        return
+    except:
+        pass
+    (dir_data, dir_config) = install_dirs(root=False)
+    desktop_file = template.replace('$APTConfigDir', dir_config)
+    try:
+        dir_applications = dir_data + '/applications'
+        write_file(package['Package'], dir_applications, desktop_file)
+    except:
+        fatal_error('Cannot install package: ')
 
 def apt_install(app_name):
     if (app_name is None):
         fatal_error('package name required')
-    else:
-        (dir_data, dir_config) = install_dirs(root=True)
-        print ("Installing " + app_name + "...")
+    print ("Installing " + app_name + "...", file=sys.stderr)
+    for package in read_packages():
+        if app_name == package['Package']: # check: 'Package' in package done in read_packages()
+            found = True
+            break
+    if not found:
+        fatal_error('Package not found: ' + app_name)
+    check_depends(package)
+    install_package(package) 
 
 
 def remove_file_if_exists(file_name):
@@ -121,7 +172,7 @@ def apt_remove(app_name, found=False):
     if (app_name is None):
         fatal_error('package name required')
     for package in read_packages():
-        if app_name == package['Package']:
+        if 'Package' in package and app_name == package['Package']:
             found = True
             break
     if not found:
